@@ -1,52 +1,99 @@
 language: cpp
-dist: xenial
+dist: bionic
+
 notifications:
   email: false
+  slack:
+    rooms:
+      - loksu:jErzuILLSNn9qGYkkILvBwje#pgcpp
 
 # Define builds on mulitple OS/compiler combinations. 
 # Feel free to add/remove entries from this list.
 matrix:
   include:
     - os: linux
-      addons:
+      addons: &gcc7
         apt:
           sources:
             - ubuntu-toolchain-r-test
           packages:
             - lcov
             - g++-7
-      env:
-        - MATRIX_EVAL="CXX_COMPILER=g++-7; sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-7 90"
+      env: COMPILER=gcc GCC=7 BUILD_TYPE='Release'
 
-    - os: osx
-      osx_image: xcode10.1
-      addons:
-        homebrew:
+    - os: linux
+      addons: *gcc7
+      env: COMPILER=gcc GCC=7 BUILD_TYPE='Release'
+
+    - os: linux
+      addons: *gcc7
+      env: COMPILER=gcc GCC=7 BUILD_TYPE='Coverage'
+
+    - os: linux
+      addons: &gcc8
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
           packages:
-          - lcov
-          update: true
+            - g++-8
+            - lcov
+      env: COMPILER=gcc GCC=8 BUILD_TYPE='Debug'
 
-      env:
-        - MATRIX_EVAL="CXX_COMPILER=clang++"
-    
+    - os: linux
+      addons: *gcc8
+      env: COMPILER=gcc GCC=8 BUILD_TYPE='Release'
+
+env:
+  global:
+    - MINCONDA_VERSION="latest"
+    - MINCONDA_LINUX="Linux-x86_64"
+    - MINCONDA_OSX="MacOSX-x86_64"
 
 before_install:
-  - eval "${MATRIX_EVAL}"
-  - PARENTDIR=$(pwd)
-  - mkdir $PARENTDIR/build
+  - |
+    # Configure build variables
+    if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      if [[ "$COMPILER" == "gcc" ]]; then
+        export CXX=g++-$GCC CC=gcc-$GCC;
+      fi
+      if [[ "$COMPILER" == "clang" ]]; then
+        export CXX=clang++-$CLANG CC=clang-$CLANG;
+      fi
+    elif [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+      export CXX=clang++ CC=clang;
+    fi
 
 install: 
-  - cd $PARENTDIR/build
-  - cmake $PARENTDIR -DCMAKE_BUILD_TYPE=Coverage -DCMAKE_CXX_COMPILER=$CXX_COMPILER
-  - make
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      MINCONDA_OS=$MINCONDA_LINUX;
+    elif [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+      MINCONDA_OS=$MINCONDA_OSX;
+    fi
+  - wget "http://repo.continuum.io/miniconda/Miniconda3-$MINCONDA_VERSION-$MINCONDA_OS.sh" -O miniconda.sh;
+  - export CONDA_PREFIX=$HOME/miniconda
+  - bash miniconda.sh -b -p $CONDA_PREFIX
+  - export PATH="$CONDA_PREFIX/bin:$PATH"
+  - export LD_LIBRARY_PATH="$CONDA_PREFIX/lib"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
+  - conda install -c conda-forge libboost fmt spdlog
 
 script:
-  - make coverage
+  - |
+    mkdir build && cd build;
+    cmake -DBUILD_TESTS=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ..;
+    make -j2
+    if [[ "$BUILD_TYPE" == "Coverage" ]]; then
+      make coverage
+    else
+      make test
+    fi
 
 after_success:
-  - cd $PARENTDIR/build
-  - lcov --list coverage_out.info.cleaned  # Show test report in travis log.
-  # Install coverals gem for uploading coverage to coveralls.
-  - gem install coveralls-lcov
-  - coveralls-lcov coverage_out.info.cleaned  # uploads to coveralls
-  - bash <(curl -s https://codecov.io/bash) -f coverage_out.info.cleaned || echo "Codecov did not collect coverage reports"
+  - |
+    if [[ "$BUILD_TYPE" == "Coverage" ]]; then
+      lcov --list coverage_out.info.cleaned
+      bash <(curl -s https://codecov.io/bash) -f coverage_out.info.cleaned || echo "Codecov did not collect coverage reports"
+    fi

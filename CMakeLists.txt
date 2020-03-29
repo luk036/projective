@@ -10,7 +10,7 @@ cmake_minimum_required(VERSION 3.8.2)
 # Set project name, version and laguages here. (change as needed)
 # Version numbers are available by including "exampleConfig.h" in 
 # the source. See exampleConfig.h.in for some more details.
-project(CPP_BOILERPLATE VERSION 1.2.3.4 LANGUAGES CXX)
+project(pgcpp VERSION 1.2.3.4 LANGUAGES CXX)
 
 
 # Options: Things you can set via commandline options to cmake (e.g. -DENABLE_LTO=[ON|OFF])
@@ -40,10 +40,18 @@ find_lto(CXX)
 set(SOURCES          # All .cpp files in src/
     src/example.cpp
 )
-set(TESTFILES        # All .cpp files in tests/
-    tests/main.cpp
-)
+# set(TESTFILES        # All .cpp files in tests/
+#     tests/main.cpp
+# )
 set(LIBRARY_NAME engine)  # Default name for the library built from src/*.cpp (change if you wish)
+
+# set (Boost_DIR $ENV{CONDA_PREFIX}/include)
+find_package (Boost REQUIRED COMPONENTS coroutine context)
+if (Boost_FOUND)
+    message(STATUS "Found boost: ${Boost_INCLUDE_DIRS}")
+    set(LIBS ${LIBS} ${Boost_LIBRARIES})
+endif (Boost_FOUND)
+set (LIBRARY_INCLUDE_PATH  ${LIBRARY_INCLUDE_PATH} ${Boost_INCLUDE_DIRS})
 
 # --------------------------------------------------------------------------------
 #                            Build! (Change as needed)
@@ -52,10 +60,10 @@ set(LIBRARY_NAME engine)  # Default name for the library built from src/*.cpp (c
 add_library(${LIBRARY_NAME} OBJECT ${SOURCES})
 
 # Lib needs its header files, and users of the library must also see these (PUBLIC). (No change needed)
-target_include_directories(${LIBRARY_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(${LIBRARY_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include ${LIBRARY_INCLUDE_PATH})
 
 # There's also (probably) doctests within the library, so we need to see this as well.
-target_link_libraries(${LIBRARY_NAME} PUBLIC doctest)
+target_link_libraries(${LIBRARY_NAME} PUBLIC doctest ${LIB})
 
 # Set the compile options you want (change as needed).
 target_set_warnings(${LIBRARY_NAME} ENABLE ALL AS_ERROR ALL DISABLE Annoying)
@@ -67,6 +75,7 @@ add_executable(main app/main.cpp)   # Name of exec. and location of file.
 target_link_libraries(main PRIVATE ${LIBRARY_NAME})  # Link the executable to library (if it uses it).
 target_set_warnings(main ENABLE ALL AS_ERROR ALL DISABLE Annoying) # Set warnings (if needed).
 target_enable_lto(main optimized)  # enable link-time-optimization if available for non-debug configurations
+target_compile_options(main PRIVATE -fconcepts -pedantic)
 
 # Set the properties you require, e.g. what C++ standard to use. Here applied to library and main (change as needed).
 set_target_properties(
@@ -74,7 +83,7 @@ set_target_properties(
       PROPERTIES 
         CXX_STANDARD 17 
         CXX_STANDARD_REQUIRED YES 
-        CXX_EXTENSIONS NO
+        CXX_EXTENSIONS YES
 )
 
 # Set up tests (see tests/CMakeLists.txt).

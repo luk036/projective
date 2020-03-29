@@ -4,6 +4,12 @@ cmake_minimum_required(VERSION 3.8.2)
 set(TESTFILES        # All .cpp files in tests/
     main.cpp
     dummy.cpp
+    test_ck_plane.cpp
+    test_ell_plane.cpp
+    test_euclid.cpp
+    test_frac.cpp
+    test_persp_plane.cpp
+    test_proj_plane.cpp
 )
 
 set(TEST_MAIN unit_tests)   # Default name for test executable (change if you wish).
@@ -17,10 +23,12 @@ target_link_libraries(${TEST_MAIN} PRIVATE ${LIBRARY_NAME} doctest)
 set_target_properties(${TEST_MAIN} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 target_set_warnings(${TEST_MAIN} ENABLE ALL AS_ERROR ALL DISABLE Annoying) # Set warnings (if needed).
 
+target_compile_options(${TEST_MAIN} PRIVATE -fconcepts -pedantic)
+
 set_target_properties(${TEST_MAIN} PROPERTIES 
     CXX_STANDARD 17 
     CXX_STANDARD_REQUIRED YES 
-    CXX_EXTENSIONS NO
+    CXX_EXTENSIONS YES
 )
 
 add_test(
